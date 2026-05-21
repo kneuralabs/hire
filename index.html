@@ -556,6 +556,42 @@ header {
 .theme-light .toggle-moon { display:none; }
 .theme-light .toggle-sun  { display:block; }
 
+/* ===== SAVE BUTTON + INDICATOR ===== */
+.save-btn {
+  position:fixed;
+  bottom:clamp(16px,3vw,24px);
+  right:calc(clamp(14px,4vw,24px) + 40px);
+  width:32px;height:32px;
+  border-radius:50%;
+  background:var(--surface);
+  border:1px solid var(--border);
+  display:grid;place-items:center;
+  cursor:pointer;z-index:999;
+  transition:border-color .2s,opacity .2s;
+  box-shadow:var(--shadow-sm);
+  opacity:.7;
+}
+.save-btn:hover { border-color:var(--accent);opacity:1; }
+.save-btn.saved { border-color:var(--accent);opacity:1; }
+.save-btn svg {
+  width:14px;height:14px;stroke:var(--accent);fill:none;
+  stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;
+}
+.save-check { display:none; }
+.save-disk  { display:block; }
+.save-btn.saved .save-check { display:block; }
+.save-btn.saved .save-disk  { display:none; }
+
+.save-indicator {
+  position:fixed;
+  bottom:calc(clamp(16px,3vw,24px) + 36px);
+  right:clamp(14px,4vw,24px);
+  font-size:10px;font-weight:600;
+  color:var(--muted);letter-spacing:.02em;
+  opacity:0;transition:opacity .3s;
+  pointer-events:none;white-space:nowrap;
+}
+
 /* ===== CANDIDATE LIST ===== */
 .cand-list-header {
   display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;
@@ -725,6 +761,10 @@ header {
   .toast        { right:  max(clamp(14px,4vw,24px), env(safe-area-inset-right,0px)); }
   .theme-toggle { right:  max(clamp(14px,4vw,24px), env(safe-area-inset-right,0px));
                   bottom: max(clamp(16px,3vw,24px), env(safe-area-inset-bottom,0px)); }
+  .save-btn     { right:  calc(max(clamp(14px,4vw,24px), env(safe-area-inset-right,0px)) + 40px);
+                  bottom: max(clamp(16px,3vw,24px), env(safe-area-inset-bottom,0px)); }
+  .save-indicator { right: max(clamp(14px,4vw,24px), env(safe-area-inset-right,0px));
+                    bottom: calc(max(clamp(16px,3vw,24px), env(safe-area-inset-bottom,0px)) + 36px); }
 }
 
 /* ===== PRINT ===== */
@@ -778,7 +818,7 @@ header {
         </div>
         <div class="job-sidebar-list" id="jobSidebarList">
           <div class="job-empty-state">
-            <div class="job-empty-icon">📭</div>
+            <div class="job-empty-icon"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="var(--border)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></div>
             <div class="job-empty-text">No openings yet.<br>Create your first role.</div>
           </div>
         </div>
@@ -885,7 +925,7 @@ header {
           onclick="document.getElementById('cvFile').click()"
           role="button" tabindex="0" aria-label="Upload CV file">
           <input type="file" id="cvFile" accept=".pdf,.doc,.docx,.txt" onchange="onFileChange()">
-          <div class="cv-icon">📄</div>
+          <div class="cv-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
           <div class="cv-label">Drop CV or <span>click to upload</span></div>
           <div style="font-size:10px;color:var(--muted);margin-top:2px">PDF · DOC · DOCX · TXT</div>
           <div class="cv-name" id="cvName"></div>
@@ -897,7 +937,7 @@ header {
     <div class="sec-head"><div class="sec-num">2</div><div class="sec-title">Candidate SWOT Analysis</div></div>
     <div class="swot-wrap">
       <div id="swotContent">
-        <div class="swot-placeholder"><span style="font-size:22px">🧠</span><span>Upload CV and click Generate SWOT for local analysis</span></div>
+        <div class="swot-placeholder"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span>Upload CV and click Generate SWOT for local analysis</span></div>
       </div>
     </div>
 
@@ -958,7 +998,7 @@ header {
       <div class="cand-list-stats" id="candStats"></div>
     </div>
     <div id="candListEmpty" class="cand-empty">
-      <div style="font-size:34px;margin-bottom:10px;opacity:.4">🗂</div>
+      <div style="margin-bottom:12px;opacity:.35"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
       <div style="font-size:14px;font-weight:700;margin-bottom:6px;">No evaluations yet</div>
       <div style="font-size:13px;color:var(--muted);">Complete and submit an evaluation to see it here.</div>
     </div>
@@ -969,6 +1009,15 @@ header {
 
 <!-- Toast notification -->
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- Save indicator -->
+<div class="save-indicator" id="saveIndicator"></div>
+
+<!-- Floating save button -->
+<button class="save-btn" id="saveBtnFloat" onclick="manualSave()" aria-label="Save all data">
+  <svg class="save-disk" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+  <svg class="save-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+</button>
 
 <!-- Floating theme toggle -->
 <button class="theme-toggle" id="themeToggleBtn" aria-label="Toggle light/dark mode">
@@ -1037,13 +1086,14 @@ function saveJob() {
   }
   renderSidebar();
   selectJob(job.id);
+  saveState();
 }
 
 function renderSidebar() {
   const list = document.getElementById('jobSidebarList');
   document.getElementById('jobCountBadge').textContent = jobs.length;
   if (!jobs.length) {
-    list.innerHTML = `<div class="job-empty-state"><div class="job-empty-icon">📭</div><div class="job-empty-text">No openings yet.<br>Create your first role.</div></div>`;
+    list.innerHTML = `<div class="job-empty-state"><div class="job-empty-icon"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="var(--border)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></div><div class="job-empty-text">No openings yet.<br>Create your first role.</div></div>`;
     return;
   }
   list.innerHTML = jobs.map(j => `
@@ -1114,6 +1164,7 @@ function deleteJob() {
   document.getElementById('jobFormView').style.display   = 'block';
   document.getElementById('editingJobId').value          = '';
   document.getElementById('jobFormTitle').textContent    = 'New Job Opening';
+  saveState();
   toast('Job deleted');
 }
 
@@ -1367,6 +1418,7 @@ function submitEval() {
   };
   candidates.push(rec);
   updateCandTab();
+  saveState();
   toast('Evaluation submitted — switching to Candidates');
   setTimeout(() => switchTab('cand-tab'), 700);
 }
@@ -1431,6 +1483,7 @@ function deleteCand(id) {
   if (!confirm('Delete this candidate evaluation?')) return;
   candidates = candidates.filter(c => c.id !== id);
   updateCandTab();
+  saveState();
   toast('Candidate evaluation deleted');
 }
 
@@ -1470,6 +1523,54 @@ function editCand(id) {
 
 function exportPDF() { window.print(); }
 
+/* ===== PERSISTENCE & AUTOSAVE ===== */
+const STORE = 'kneuhire_v1';
+let lastSaved = null;
+
+function saveState() {
+  try {
+    localStorage.setItem(STORE, JSON.stringify({ jobs, jobCounter, candidates, candCounter }));
+    lastSaved = Date.now();
+    showSaveIndicator();
+  } catch(e) { /* storage unavailable */ }
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORE);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    if (Array.isArray(s.jobs))       { jobs       = s.jobs;       }
+    if (typeof s.jobCounter === 'number') { jobCounter = s.jobCounter; }
+    if (Array.isArray(s.candidates)) { candidates = s.candidates; }
+    if (typeof s.candCounter === 'number') { candCounter = s.candCounter; }
+  } catch(e) { /* corrupt data — start fresh */ }
+}
+
+function showSaveIndicator() {
+  const el = document.getElementById('saveIndicator');
+  if (!el) return;
+  const now = new Date();
+  el.textContent = 'Saved ' + now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+  el.style.opacity = '1';
+  clearTimeout(el._fadeTimer);
+  el._fadeTimer = setTimeout(() => { el.style.opacity = '0'; }, 3000);
+}
+
+function manualSave() {
+  saveState();
+  const btn = document.getElementById('saveBtnFloat');
+  btn.classList.add('saved');
+  clearTimeout(btn._resetTimer);
+  btn._resetTimer = setTimeout(() => btn.classList.remove('saved'), 1500);
+}
+
+function startAutosave() {
+  setInterval(() => {
+    if (jobs.length || candidates.length) saveState();
+  }, 30000);
+}
+
 /* ===== THEME (time-based + toggle) ===== */
 function setThemeFromTime() {
   const h = new Date().getHours();
@@ -1492,11 +1593,14 @@ document.getElementById('themeToggleBtn').addEventListener('click', () => {
 
 /* ===== INIT ===== */
 document.addEventListener('DOMContentLoaded', () => {
+  loadState();
   buildGrid();
   updateSummary();
   initTabs();
   initTheme();
+  renderSidebar();
   updateCandTab();
+  startAutosave();
 });
 </script>
 </body>
