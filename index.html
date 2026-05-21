@@ -35,6 +35,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 <script>pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';</script>
 
+<!-- SheetJS for XLSX read/write -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+
 <style>
 /* ===== BRAND TOKENS ===== */
 :root {
@@ -592,6 +595,86 @@ header {
   pointer-events:none;white-space:nowrap;
 }
 
+/* ===== SETTINGS BUTTON + GITHUB PANEL ===== */
+.settings-btn {
+  position:fixed;
+  bottom:clamp(16px,3vw,24px);
+  right:calc(clamp(14px,4vw,24px) + 80px);
+  width:32px;height:32px;
+  border-radius:50%;
+  background:var(--surface);
+  border:1px solid var(--border);
+  display:grid;place-items:center;
+  cursor:pointer;z-index:999;
+  transition:border-color .2s,opacity .2s;
+  box-shadow:var(--shadow-sm);
+  opacity:.7;
+}
+.settings-btn:hover,.settings-btn.open { border-color:var(--accent);opacity:1; }
+.settings-btn svg {
+  width:14px;height:14px;stroke:var(--accent);fill:none;
+  stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;
+}
+
+.gh-panel {
+  position:fixed;
+  bottom:calc(clamp(16px,3vw,24px) + 42px);
+  right:calc(clamp(14px,4vw,24px) + 50px);
+  width:260px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:16px;
+  z-index:1000;
+  box-shadow:var(--shadow-md);
+  display:none;
+  animation:fadeUp .2s cubic-bezier(0,0,.2,1);
+}
+.gh-panel.open { display:block; }
+.gh-panel-title {
+  font-size:12px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.08em;color:var(--muted);margin-bottom:12px;
+}
+.gh-status-row {
+  display:flex;align-items:center;gap:8px;
+  margin-bottom:12px;
+}
+.gh-status-dot {
+  width:8px;height:8px;border-radius:50%;
+  background:var(--border);flex-shrink:0;
+  transition:background .3s;
+}
+.gh-status-dot.connected { background:#22c55e; }
+.gh-status-label { font-size:12px;color:var(--muted2); }
+.gh-pat-input {
+  width:100%;background:var(--card);border:1px solid var(--border);
+  border-radius:7px;color:var(--text);font-size:12px;
+  padding:8px 10px;font-family:var(--font);outline:none;
+  transition:border-color .2s;margin-bottom:8px;
+}
+.gh-pat-input:focus { border-color:var(--accent); }
+.gh-panel-btns { display:flex;gap:6px;margin-bottom:10px; }
+.gh-panel-btns button {
+  flex:1;padding:7px;border-radius:7px;font-size:12px;font-weight:600;
+  cursor:pointer;font-family:var(--font);transition:all .15s;border:1px solid;
+}
+.gh-btn-connect {
+  background:var(--accent);border-color:var(--accent);color:#F7F8FA;
+}
+.gh-btn-connect:hover { background:var(--accent-deep);border-color:var(--accent-deep); }
+.gh-btn-disconnect {
+  background:transparent;border-color:var(--border);color:var(--muted2);
+}
+.gh-btn-disconnect:hover { border-color:var(--alert);color:var(--alert); }
+.gh-panel-hint {
+  font-size:10px;color:var(--muted);line-height:1.5;
+  border-top:1px solid var(--border);padding-top:8px;
+}
+.gh-panel-hint code {
+  background:var(--card);border:1px solid var(--border);
+  border-radius:3px;padding:1px 4px;font-size:10px;
+}
+
 /* ===== CANDIDATE LIST ===== */
 .cand-list-header {
   display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;
@@ -765,6 +848,10 @@ header {
                   bottom: max(clamp(16px,3vw,24px), env(safe-area-inset-bottom,0px)); }
   .save-indicator { right: max(clamp(14px,4vw,24px), env(safe-area-inset-right,0px));
                     bottom: calc(max(clamp(16px,3vw,24px), env(safe-area-inset-bottom,0px)) + 36px); }
+  .settings-btn { right:  calc(max(clamp(14px,4vw,24px), env(safe-area-inset-right,0px)) + 80px);
+                  bottom: max(clamp(16px,3vw,24px), env(safe-area-inset-bottom,0px)); }
+  .gh-panel     { right:  calc(max(clamp(14px,4vw,24px), env(safe-area-inset-right,0px)) + 50px);
+                  bottom: calc(max(clamp(16px,3vw,24px), env(safe-area-inset-bottom,0px)) + 42px); }
 }
 
 /* ===== PRINT ===== */
@@ -1012,6 +1099,29 @@ header {
 
 <!-- Save indicator -->
 <div class="save-indicator" id="saveIndicator"></div>
+
+<!-- GitHub sync panel -->
+<div class="gh-panel" id="ghPanel">
+  <div class="gh-panel-title">GitHub Data Sync</div>
+  <div class="gh-status-row">
+    <span class="gh-status-dot" id="ghStatusDot"></span>
+    <span class="gh-status-label" id="ghStatusLabel">Not connected</span>
+  </div>
+  <input type="password" id="ghPatInput" class="gh-pat-input" placeholder="ghp_xxxxxxxxxxxx" autocomplete="off">
+  <div class="gh-panel-btns">
+    <button class="gh-btn-connect" onclick="connectGitHub()">Connect</button>
+    <button class="gh-btn-disconnect" id="ghDisconnectBtn" onclick="disconnectGitHub()">Disconnect</button>
+  </div>
+  <div class="gh-panel-hint">
+    Personal Access Token with <code>contents: write</code> scope on <code>kneuralabs/hire</code>.<br>
+    Saved to <code>DATA.xlsx</code> in the repo.
+  </div>
+</div>
+
+<!-- Settings / GitHub sync button -->
+<button class="settings-btn" id="settingsBtn" onclick="toggleGHPanel()" aria-label="GitHub sync settings">
+  <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+</button>
 
 <!-- Floating save button -->
 <button class="save-btn" id="saveBtnFloat" onclick="manualSave()" aria-label="Save all data">
@@ -1523,6 +1633,156 @@ function editCand(id) {
 
 function exportPDF() { window.print(); }
 
+/* ===== GITHUB SYNC ===== */
+const GH_OWNER  = 'kneuralabs';
+const GH_REPO   = 'hire';
+const GH_FILE   = 'DATA.xlsx';
+const GH_BRANCH = 'main';
+const GH_RAW    = `https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/${GH_BRANCH}/${GH_FILE}`;
+const GH_API    = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}`;
+const PAT_KEY   = 'kneuhire_gh_pat';
+
+function loadPAT()        { return localStorage.getItem(PAT_KEY) || ''; }
+function storePAT(v)      { v ? localStorage.setItem(PAT_KEY, v) : localStorage.removeItem(PAT_KEY); updateGHStatus(); }
+
+function updateGHStatus() {
+  const pat  = loadPAT();
+  const dot  = document.getElementById('ghStatusDot');
+  const lbl  = document.getElementById('ghStatusLabel');
+  const disc = document.getElementById('ghDisconnectBtn');
+  if (!dot) return;
+  dot.classList.toggle('connected', !!pat);
+  lbl.textContent  = pat ? 'Connected — syncs to DATA.xlsx' : 'Not connected';
+  disc.style.display = pat ? '' : 'none';
+}
+
+function toggleGHPanel() {
+  const panel = document.getElementById('ghPanel');
+  const btn   = document.getElementById('settingsBtn');
+  const open  = panel.classList.toggle('open');
+  btn.classList.toggle('open', open);
+  if (open) {
+    const pat = loadPAT();
+    const inp = document.getElementById('ghPatInput');
+    inp.value = pat ? '••••••••••••' : '';
+    updateGHStatus();
+  }
+}
+
+function connectGitHub() {
+  const inp = document.getElementById('ghPatInput');
+  const val = inp.value.trim();
+  if (!val || val.startsWith('•')) { toast('Enter a valid token'); return; }
+  storePAT(val);
+  toast('GitHub connected — saving now…');
+  toggleGHPanel();
+  manualSave();
+}
+
+function disconnectGitHub() {
+  storePAT('');
+  document.getElementById('ghPatInput').value = '';
+  toggleGHPanel();
+  toast('GitHub sync disconnected');
+}
+
+/* Convert app data → XLSX workbook */
+function dataToWorkbook() {
+  const wb = XLSX.utils.book_new();
+
+  const jobRows = jobs.length ? jobs : [{}];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(jobRows), 'Jobs');
+
+  const candRows = candidates.length
+    ? candidates.map(c => {
+        const row = { ...c };
+        if (row.scores && typeof row.scores === 'object') {
+          Object.entries(row.scores).forEach(([k,v]) => { row['score_' + k] = v; });
+        }
+        delete row.scores;
+        return row;
+      })
+    : [{}];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(candRows), 'Candidates');
+
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{ jobCounter, candCounter }]), 'Meta');
+  return wb;
+}
+
+/* Parse XLSX workbook → restore app data */
+function workbookToData(wb) {
+  const jobSheet  = wb.Sheets['Jobs'];
+  const candSheet = wb.Sheets['Candidates'];
+  const metaSheet = wb.Sheets['Meta'];
+
+  if (jobSheet) {
+    const rows = XLSX.utils.sheet_to_json(jobSheet);
+    if (rows.length && rows[0].id) jobs = rows;
+  }
+  if (candSheet) {
+    const rows = XLSX.utils.sheet_to_json(candSheet);
+    if (rows.length && rows[0].id) {
+      candidates = rows.map(c => {
+        const scores = {};
+        Object.keys(c).filter(k => k.startsWith('score_')).forEach(k => {
+          scores[k.slice(6)] = Number(c[k]);
+          delete c[k];
+        });
+        c.scores = scores;
+        return c;
+      });
+    }
+  }
+  if (metaSheet) {
+    const rows = XLSX.utils.sheet_to_json(metaSheet);
+    if (rows[0]) {
+      if (typeof rows[0].jobCounter  === 'number') jobCounter  = rows[0].jobCounter;
+      if (typeof rows[0].candCounter === 'number') candCounter = rows[0].candCounter;
+    }
+  }
+}
+
+/* Load DATA.xlsx from GitHub (public read — no PAT needed) */
+async function loadFromGitHub() {
+  try {
+    const resp = await fetch(GH_RAW + '?cb=' + Date.now());
+    if (!resp.ok) return false;
+    const ab = await resp.arrayBuffer();
+    const wb = XLSX.read(new Uint8Array(ab), { type: 'array' });
+    workbookToData(wb);
+    return true;
+  } catch(e) { return false; }
+}
+
+/* Write DATA.xlsx to GitHub repo (requires PAT) */
+async function saveToGitHub() {
+  const pat = loadPAT();
+  if (!pat) return false;
+  try {
+    const wb     = dataToWorkbook();
+    const b64    = XLSX.write(wb, { bookType:'xlsx', type:'base64' });
+    const heads  = {
+      'Authorization': 'token ' + pat,
+      'Accept': 'application/vnd.github.v3+json',
+      'Content-Type': 'application/json'
+    };
+    // Get current SHA (needed to overwrite existing file)
+    let sha;
+    const getR = await fetch(GH_API + '?ref=' + GH_BRANCH, { headers: heads });
+    if (getR.ok) { const info = await getR.json(); sha = info.sha; }
+
+    const body = {
+      message: 'KneuHIRE sync ' + new Date().toISOString().slice(0,16).replace('T',' ') + ' UTC',
+      content: b64,
+      branch:  GH_BRANCH
+    };
+    if (sha) body.sha = sha;
+
+    const putR = await fetch(GH_API, { method:'PUT', headers: heads, body: JSON.stringify(body) });
+    return putR.ok;
+  } catch(e) { return false; }
+}
+
 /* ===== PERSISTENCE & AUTOSAVE ===== */
 const STORE = 'kneuhire_v1';
 let lastSaved = null;
@@ -1547,28 +1807,54 @@ function loadState() {
   } catch(e) { /* corrupt data — start fresh */ }
 }
 
-function showSaveIndicator() {
+function showSaveIndicator(msg) {
   const el = document.getElementById('saveIndicator');
   if (!el) return;
-  const now = new Date();
-  el.textContent = 'Saved ' + now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+  if (!msg) {
+    const now = new Date();
+    msg = 'Saved ' + now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+  }
+  el.textContent = msg;
   el.style.opacity = '1';
   clearTimeout(el._fadeTimer);
-  el._fadeTimer = setTimeout(() => { el.style.opacity = '0'; }, 3000);
+  el._fadeTimer = setTimeout(() => { el.style.opacity = '0'; }, 3500);
 }
 
-function manualSave() {
-  saveState();
+function setBtnState(state) {
   const btn = document.getElementById('saveBtnFloat');
-  btn.classList.add('saved');
-  clearTimeout(btn._resetTimer);
-  btn._resetTimer = setTimeout(() => btn.classList.remove('saved'), 1500);
+  btn.classList.remove('saved');
+  if (state === 'saved') {
+    btn.classList.add('saved');
+    clearTimeout(btn._resetTimer);
+    btn._resetTimer = setTimeout(() => btn.classList.remove('saved'), 1800);
+  }
+}
+
+async function manualSave() {
+  saveState();
+  setBtnState('saved');
+  if (loadPAT()) {
+    showSaveIndicator('Saving to GitHub…');
+    const ok = await saveToGitHub();
+    showSaveIndicator(ok ? 'Saved to GitHub' : 'GitHub save failed — check token');
+    if (!ok) toast('GitHub save failed — check PAT in settings');
+  } else {
+    showSaveIndicator();
+  }
 }
 
 function startAutosave() {
+  // localStorage: every 30s
   setInterval(() => {
     if (jobs.length || candidates.length) saveState();
   }, 30000);
+  // GitHub: every 5 minutes if PAT is set
+  setInterval(async () => {
+    if (loadPAT() && (jobs.length || candidates.length)) {
+      await saveToGitHub();
+      showSaveIndicator('Auto-saved to GitHub');
+    }
+  }, 300000);
 }
 
 /* ===== THEME (time-based + toggle) ===== */
@@ -1592,7 +1878,8 @@ document.getElementById('themeToggleBtn').addEventListener('click', () => {
 });
 
 /* ===== INIT ===== */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  // 1. Load localStorage immediately (instant UI)
   loadState();
   buildGrid();
   updateSummary();
@@ -1600,7 +1887,18 @@ document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   renderSidebar();
   updateCandTab();
+  updateGHStatus();
   startAutosave();
+
+  // 2. Overlay with GitHub data if available (authoritative source)
+  if (typeof XLSX !== 'undefined') {
+    const loaded = await loadFromGitHub();
+    if (loaded) {
+      renderSidebar();
+      updateCandTab();
+      showSaveIndicator('Loaded from GitHub');
+    }
+  }
 });
 </script>
 </body>
