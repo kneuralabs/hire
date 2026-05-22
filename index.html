@@ -674,6 +674,15 @@ header {
   background:var(--card);border:1px solid var(--border);
   border-radius:3px;padding:1px 4px;font-size:10px;
 }
+.gh-panel-error {
+  display:none;font-size:11px;color:var(--alert);
+  background:rgba(200,40,30,.08);border:1px solid rgba(200,40,30,.25);
+  border-radius:6px;padding:7px 10px;margin-bottom:8px;line-height:1.4;
+}
+.gh-panel-error.visible { display:block; }
+.gh-btn-connect:disabled {
+  opacity:.55;cursor:not-allowed;
+}
 
 /* ===== CANDIDATE LIST ===== */
 .cand-list-header {
@@ -1108,8 +1117,9 @@ header {
     <span class="gh-status-label" id="ghStatusLabel">Not connected</span>
   </div>
   <input type="password" id="ghPatInput" class="gh-pat-input" placeholder="ghp_xxxxxxxxxxxx" autocomplete="off">
+  <div class="gh-panel-error" id="ghPanelError"></div>
   <div class="gh-panel-btns">
-    <button class="gh-btn-connect" onclick="connectGitHub()">Connect</button>
+    <button class="gh-btn-connect" id="ghConnectBtn" onclick="connectGitHub()">Connect</button>
     <button class="gh-btn-disconnect" id="ghDisconnectBtn" onclick="disconnectGitHub()">Disconnect</button>
   </div>
   <div class="gh-panel-hint">
@@ -1661,6 +1671,7 @@ function toggleGHPanel() {
   const btn   = document.getElementById('settingsBtn');
   const open  = panel.classList.toggle('open');
   btn.classList.toggle('open', open);
+  showPanelError('');
   if (open) {
     const pat = loadPAT();
     const inp = document.getElementById('ghPatInput');
@@ -1669,14 +1680,47 @@ function toggleGHPanel() {
   }
 }
 
-function connectGitHub() {
+function showPanelError(msg) {
+  const el = document.getElementById('ghPanelError');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.toggle('visible', !!msg);
+}
+
+async function connectGitHub() {
   const inp = document.getElementById('ghPatInput');
+  const btn = document.getElementById('ghConnectBtn');
   const val = inp.value.trim();
   if (!val || val.startsWith('•')) { toast('Enter a valid token'); return; }
-  storePAT(val);
-  toast('GitHub connected — saving now…');
-  toggleGHPanel();
-  manualSave();
+  showPanelError('');
+  btn.disabled = true;
+  btn.textContent = 'Verifying…';
+  try {
+    const r = await fetch('https://api.github.com/repos/' + GH_OWNER + '/' + GH_REPO, {
+      headers: { 'Authorization': 'token ' + val, 'Accept': 'application/vnd.github.v3+json' }
+    });
+    if (r.status === 401) {
+      showPanelError('Invalid token — check it and try again.');
+      return;
+    }
+    if (r.status === 403) {
+      showPanelError('Token lacks repo access — enable contents:write scope.');
+      return;
+    }
+    if (!r.ok) {
+      showPanelError('Connection failed (HTTP ' + r.status + ') — try again.');
+      return;
+    }
+    storePAT(val);
+    toast('GitHub connected — saving now…');
+    toggleGHPanel();
+    manualSave();
+  } catch(e) {
+    showPanelError('Network error — check your connection and try again.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Connect';
+  }
 }
 
 function disconnectGitHub() {
@@ -1779,6 +1823,11 @@ async function saveToGitHub() {
     if (sha) body.sha = sha;
 
     const putR = await fetch(GH_API, { method:'PUT', headers: heads, body: JSON.stringify(body) });
+    if (putR.status === 401 || putR.status === 403) {
+      storePAT('');
+      toast('GitHub token is no longer valid — open settings to reconnect.');
+      return false;
+    }
     return putR.ok;
   } catch(e) { return false; }
 }
