@@ -1174,7 +1174,21 @@ const LABELS = ['','Needs Work','Below Average','Meets Bar','Strong','Exceptiona
 
 let scores = {}, recommendation = null, cvText = '', swotData = null;
 let jobs = [], jobCounter = 0, activeJobId = null;
-let candidates = [], candCounter = 0;
+let candidates = [], candCounter = 0, editingCandId = null;
+
+/* ===== UTILITIES ===== */
+/* Escape untrusted values before interpolating into innerHTML. Job and
+   candidate fields round-trip through a shared DATA.xlsx synced via GitHub
+   and re-render in every user's browser, so all such values must be treated
+   as untrusted to prevent stored, cross-user XSS. */
+function escapeHtml(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 /* ===== JOB MANAGEMENT ===== */
 function genJobId() {
@@ -1221,12 +1235,15 @@ function renderSidebar() {
     list.innerHTML = `<div class="job-empty-state"><div class="job-empty-icon"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="var(--border)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></div><div class="job-empty-text">No openings yet.<br>Create your first role.</div></div>`;
     return;
   }
-  list.innerHTML = jobs.map(j => `
-    <div class="job-item${j.id === activeJobId ? ' active' : ''}" onclick="selectJob('${j.id}')" id="ji_${j.id}" role="button" tabindex="0">
-      <div class="job-item-id">${j.id}</div>
-      <div class="job-item-title">${j.title}</div>
-      <div class="job-item-dept">${j.dept || '—'}</div>
-    </div>`).join('');
+  list.innerHTML = jobs.map(j => {
+    const id = escapeHtml(j.id);
+    return `
+    <div class="job-item${j.id === activeJobId ? ' active' : ''}" onclick="selectJob('${id}')" id="ji_${id}" role="button" tabindex="0">
+      <div class="job-item-id">${id}</div>
+      <div class="job-item-title">${escapeHtml(j.title)}</div>
+      <div class="job-item-dept">${escapeHtml(j.dept) || '—'}</div>
+    </div>`;
+  }).join('');
 }
 
 function selectJob(id) {
@@ -1240,15 +1257,15 @@ function selectJob(id) {
   document.getElementById('detailJobId').textContent = job.id;
   document.getElementById('detailJobTitle').textContent = job.title;
   const meta = [];
-  if (job.dept)   meta.push(`<div class="job-detail-chip"><em>${job.dept}</em></div>`);
-  if (job.exp)    meta.push(`<div class="job-detail-chip"><em>${job.exp}</em></div>`);
-  if (job.salary) meta.push(`<div class="job-detail-chip"><em>${job.salary}</em></div>`);
+  if (job.dept)   meta.push(`<div class="job-detail-chip"><em>${escapeHtml(job.dept)}</em></div>`);
+  if (job.exp)    meta.push(`<div class="job-detail-chip"><em>${escapeHtml(job.exp)}</em></div>`);
+  if (job.salary) meta.push(`<div class="job-detail-chip"><em>${escapeHtml(job.salary)}</em></div>`);
   document.getElementById('detailJobMeta').innerHTML = meta.join('');
   let body = '';
-  if (job.responsibilities) body += `<div class="job-detail-section"><div class="job-detail-section-title">Responsibilities</div><p>${job.responsibilities}</p></div>`;
-  if (job.skills)           body += `<div class="job-detail-section"><div class="job-detail-section-title">Required Skills</div><p>${job.skills}</p></div>`;
-  if (job.nice)             body += `<div class="job-detail-section"><div class="job-detail-section-title">Nice to Have</div><p>${job.nice}</p></div>`;
-  if (job.notes)            body += `<div class="job-detail-section full"><div class="job-detail-section-title">Hiring Notes</div><p>${job.notes}</p></div>`;
+  if (job.responsibilities) body += `<div class="job-detail-section"><div class="job-detail-section-title">Responsibilities</div><p>${escapeHtml(job.responsibilities)}</p></div>`;
+  if (job.skills)           body += `<div class="job-detail-section"><div class="job-detail-section-title">Required Skills</div><p>${escapeHtml(job.skills)}</p></div>`;
+  if (job.nice)             body += `<div class="job-detail-section"><div class="job-detail-section-title">Nice to Have</div><p>${escapeHtml(job.nice)}</p></div>`;
+  if (job.notes)            body += `<div class="job-detail-section full"><div class="job-detail-section-title">Hiring Notes</div><p>${escapeHtml(job.notes)}</p></div>`;
   document.getElementById('detailJobBody').innerHTML = body || '<div class="job-detail-section full"><p style="color:var(--muted)">No additional details added.</p></div>';
 }
 
@@ -1496,7 +1513,7 @@ function setRec(btn, val) {
 /* ===== SUBMIT / RESET ===== */
 function resetAll() {
   if (!confirm('Reset all evaluation data?')) return;
-  scores = {}; recommendation = null; cvText = ''; swotData = null;
+  scores = {}; recommendation = null; cvText = ''; swotData = null; editingCandId = null;
   document.querySelectorAll('#eval-tab input, #eval-tab textarea, #eval-tab select').forEach(el => {
     if (el.id !== 'cvFile') el.value = '';
   });
@@ -1527,9 +1544,19 @@ function submitEval() {
   const rated    = CRITERIA.filter(c => scores[c.id]);
   const avg      = rated.length ? rated.reduce((s, c) => s + scores[c.id], 0) / rated.length : 0;
 
-  candCounter++;
+  // Re-submitting an edited candidate reuses its original ID; a fresh
+  // submission advances the monotonic counter. (Decrementing the counter on
+  // edit previously caused duplicate IDs.)
+  let candId;
+  if (editingCandId) {
+    candId = editingCandId;
+    editingCandId = null;
+  } else {
+    candCounter++;
+    candId = 'CAND-' + String(candCounter).padStart(3,'0');
+  }
   const rec = {
-    id:           'CAND-' + String(candCounter).padStart(3,'0'),
+    id:           candId,
     name, role, dept, email, intType, date,
     jobId:        jobIdRaw    || '—',
     jobTitle:     jobTitleRaw || role || '—',
@@ -1577,26 +1604,27 @@ function updateCandTab() {
     const cards = list.map(c => {
       const vCls   = c.recommendation === 'hire' ? 'hire' : c.recommendation === 'consider' ? 'consider' : 'pass';
       const vLabel = c.recommendation === 'hire' ? 'Hire' : c.recommendation === 'consider' ? 'Consider' : 'Pass';
+      const cid    = escapeHtml(c.id);
       const meta   = [];
-      if (c.intType) meta.push(`<span>${c.intType}</span>`);
-      if (c.date)    meta.push(`<span>${c.date}</span>`);
-      if (c.avgScore > 0) meta.push(`<span>${c.avgScore}/5 (${c.ratedCount} criteria)</span>`);
-      return `<div class="cand-card" id="ccard_${c.id}">
+      if (c.intType) meta.push(`<span>${escapeHtml(c.intType)}</span>`);
+      if (c.date)    meta.push(`<span>${escapeHtml(c.date)}</span>`);
+      if (c.avgScore > 0) meta.push(`<span>${escapeHtml(c.avgScore)}/5 (${escapeHtml(c.ratedCount)} criteria)</span>`);
+      return `<div class="cand-card" id="ccard_${cid}">
         <div class="cand-card-left">
-          <div class="cand-card-name">${c.name}</div>
+          <div class="cand-card-name">${escapeHtml(c.name)}</div>
           <div class="cand-card-meta">${meta.join('')}</div>
         </div>
         <div class="verdict-pill ${vCls}">${vLabel}</div>
         <div class="cand-card-actions">
-          <button class="btn-cand-edit" onclick="editCand('${c.id}')">Edit</button>
-          <button class="btn-cand-del"  onclick="deleteCand('${c.id}')" title="Delete">✕</button>
+          <button class="btn-cand-edit" onclick="editCand('${cid}')">Edit</button>
+          <button class="btn-cand-del"  onclick="deleteCand('${cid}')" title="Delete">✕</button>
         </div>
       </div>`;
     }).join('');
     return `<div class="cand-job-group">
       <div class="cand-job-group-header">
-        <div class="cand-job-group-id">${jId}</div>
-        <div class="cand-job-group-title">${jTitle}</div>
+        <div class="cand-job-group-id">${escapeHtml(jId)}</div>
+        <div class="cand-job-group-title">${escapeHtml(jTitle)}</div>
         <div class="cand-job-group-count">${list.length} candidate${list.length > 1 ? 's' : ''}</div>
       </div>
       ${cards}
@@ -1615,8 +1643,8 @@ function deleteCand(id) {
 function editCand(id) {
   const rec = candidates.find(c => c.id === id);
   if (!rec) return;
+  editingCandId = id;
   candidates = candidates.filter(c => c.id !== id);
-  candCounter--;
   updateCandTab();
   document.getElementById('cName').value        = rec.name;
   document.getElementById('cEmail').value       = rec.email || '';
